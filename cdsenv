@@ -1,0 +1,2 @@
+cdsLibManager.main showCategoriesOn boolean t
+cdsLibManager.main showFilesOn boolean f
