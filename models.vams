@@ -1,0 +1,1509 @@
+/**
+ * @author      : Xiwen Zhang (xiwen.zhang@nuvoltatech.com)
+ * @file        : nvt_amux.vams
+ * @created     : Friday Jan 20, 2023 06:24:43 CST
+ */
+//
+//        NuVolta Technologies, Inc.
+//        Confidential Information
+//
+//        Description:
+//
+//
+//
+//        History:
+//        Date          Rev         who          Comments
+//        20/01/2023     1.0         xwzhang     Initial release
+//
+//----------------------------------------------------------------------------------------
+
+
+`include "disciplines.vams"
+`include "constants.vams"
+`timescale 1ns/1ps
+
+module nvt_amux(in, out, en, sel);
+    parameter NUM_BITS = 3;
+    localparam NUM_IN = 1 << NUM_BITS;
+    input [NUM_IN - 1 : 0] in;
+    input [NUM_BITS - 1 : 0] sel;
+    input en;
+    output out;
+    electrical [NUM_IN - 1 : 0] in;
+    electrical out;
+    parameter real ron = 1m; //default on impedance for voltage source
+    parameter real roff = 10e6; //default off impedance for voltage source
+    genvar ii;
+    generate
+        for(ii = 0; ii < NUM_IN; ii = ii + 1) begin: SWTH_IN_OUT
+            nvt_swth #(.ron(ron), .roff(roff)) swth_in_out(.p(in[ii]), .n(out), .en(sel === ii && en === 1'b1));
+        end
+    endgenerate
+endmodule //nvt_amux
+
+/**
+ * @author      : Xiwen Zhang (xiwen.zhang@nuvoltatech.com)
+ * @file        : nvt_amux.vams
+ * @created     : Friday Jan 20, 2023 06:24:43 CST
+ */
+//
+//        NuVolta Technologies, Inc.
+//        Confidential Information
+//
+//        Description:
+//
+//
+//
+//        History:
+//        Date          Rev         who          Comments
+//        20/01/2023     1.0         xwzhang     Initial release
+//
+//----------------------------------------------------------------------------------------
+
+
+`include "disciplines.vams"
+`include "constants.vams"
+`timescale 1ns/1ps
+
+module nvt_amux_all(in, out, en, sel);
+    parameter NUM_IN = 5;
+    input [NUM_IN - 1 : 0] in;
+    input [NUM_IN - 1 : 0] sel;
+    input en;
+    output out;
+    electrical [NUM_IN - 1 : 0] in;
+    electrical out;
+    parameter real ron = 1m; //default on impedance for voltage source
+    parameter real roff = 10e6; //default off impedance for voltage source
+    genvar ii;
+    generate
+        for(ii = 0; ii < NUM_IN; ii = ii + 1) begin: SWTH_IN_OUT
+            nvt_swth #(.ron(ron), .roff(roff)) swth_in_out(.p(in[ii]), .n(out), .en(sel[ii] === 1'b1 && en === 1'b1));
+        end
+    endgenerate
+endmodule //nvt_amux
+
+/**
+ * @author      : Xiwen Zhang (xiwen.zhang@nuvoltatech.com)
+ * @file        : nvt_comp.vams
+ * @created     : Wednesday Nov 16, 2022 22:23:07 CST
+ */
+//
+//        NuVolta Technologies, Inc.
+//        Confidential Information
+//
+//        Description:
+//        A verilogAMS comparator model
+//
+//
+//        History:
+//        Date          Rev         who          Comments
+//        16/11/2022     1.0         xwzhang     Initial release
+//
+//----------------------------------------------------------------------------------------
+
+
+`include "disciplines.vams"
+`include "constants.vams"
+`timescale 1ns/1ps
+
+module nvt_comp(p, n, en, out);
+    inout p, n;
+    input en;
+    wire en;
+    output out;
+    wire out;
+    electrical p, n;
+    parameter real offset  = 0.001;   // offset value
+    parameter real hyst  = 0.0;   // hysteresis of the comparator
+    parameter dis_val = 0;  // default output when comparator is disabled
+    parameter hyst_dir = 0; //direction of the hysteresis - 0 rising, 1 falling
+
+    reg out_reg;
+    assign out = en ? out_reg : dis_val;
+    always @(above(V(p, n) - offset - (1 - hyst_dir) * hyst)) begin
+        out_reg = 1'b1;
+    end
+    always @(above(V(n, p) + offset - hyst_dir * hyst)) begin
+        out_reg = 1'b0;
+    end
+
+endmodule //nvt_comp
+
+/**
+ * @author      : Xiwen Zhang (xiwen.zhang@nuvoltatech.com)
+ * @file        : nvt_ichk.vams
+ * @created     : Wednesday Nov 16, 2022 23:09:19 CST
+ */
+//
+//        NuVolta Technologies, Inc.
+//        Confidential Information
+//
+//        Description:
+//        current check
+//
+//
+//        History:
+//        Date          Rev         who          Comments
+//        16/11/2022     1.0         xwzhang     Initial release
+//
+//----------------------------------------------------------------------------------------
+
+
+`include "disciplines.vams"
+`include "constants.vams"
+`timescale 1ns/1ps
+
+module nvt_ichk(p, n, ig);
+    input p, n;
+    electrical p, n;
+    output ig;
+    wire ig;
+    parameter real exp_val = 1e-6;
+    parameter real rval = 200e3;
+    parameter real accuracy = 0.1 * exp_val;
+    localparam real vexp_val = exp_val * rval;
+    localparam real vaccuracy = accuracy * rval;
+//    GR("p n 200k")
+    //resistor of value 200k from p to n.
+    `ifndef NO_BIAS_CHECK
+        resistor #(.r(rval)) RPN(p, n);
+    //    GA("nvt_vchk p n ig exp_val=vexp_val accuracy=vaccuracy")
+        nvt_vchk #(.exp_val(vexp_val), .accuracy(vaccuracy)) vchk_Ig(.p(p), .n(n), .vg(ig));
+    `else
+        assign ig = 1'b1;
+    `endif
+endmodule //nvt_ichk
+
+/**
+ * @author      : Xiwen Zhang (xiwen.zhang@nuvoltatech.com)
+ * @file        : nvt_isrc.vams
+ * @created     : Friday Nov 11, 2022 12:19:17 CST
+ */
+//
+//        NuVolta Technologies, Inc.
+//        Confidential Information
+//
+//        Description:
+//
+//
+//
+//        History:
+//        Date          Rev         who          Comments
+//        11/11/2022     1.0         xwzhang     Initial release
+//
+//----------------------------------------------------------------------------------------
+
+
+`include "disciplines.vams"
+`include "constants.vams"
+`timescale 1ns/1ps
+
+module nvt_isrc(p, n, en);
+    inout p, n;
+    input en;
+    wire en;
+    electrical p, n;
+    parameter real idc = 0.0;   // I set
+    parameter real vmin = 0.2;   // min voltage diff when current would collapse
+    parameter real tr = 100n; //default rise time for voltage source
+    parameter real tf = 100n; //default fall time for voltage source
+    parameter real ron = 10; //default ron value when v(p, n) < vmin
+    parameter real gmin = 1e-12; //gmin between two nodes of p and n
+    parameter integer nstep = 10 from [1 : 100]; //default number of steps change
+
+    real isrc_val = idc;
+    real trise = tr;
+    real tfall = tf;
+    real ron_val = ron;
+    integer step_cnt = nstep;
+    initial begin
+        step_cnt = nstep;
+        isrc_val = idc;
+        trise = tr;
+        tfall = tf;
+    end
+
+    real isrcx, ren, risrc;
+    analog begin
+        ren = transition(en, 0, tr, tf);
+        risrc = transition(isrc_val, 0, trise, tfall);
+        if(V(p, n) > vmin) isrcx = risrc;
+        else isrcx = V(p, n) / ron_val;
+        I(p,n) <+ isrcx * ren;
+        I(p,n) <+ V(p, n) * gmin;
+    end
+
+    task ramp_isrc_val;
+    input real in_val;
+    input real ramp_time;
+    real orig_i, di;
+    begin
+        trise = ramp_time / step_cnt;
+        tfall = ramp_time / step_cnt;
+        orig_i = isrc_val;
+        di = (in_val - orig_i) / step_cnt;
+        repeat(step_cnt) begin
+            if(orig_i < in_val) #(trise * 1e9);
+            else #(tfall * 1e9);
+            isrc_val = isrc_val + di;
+        end
+    end
+    endtask
+
+    task set_steps;
+    input integer in_val;
+    begin
+        if(in_val >= 1 && in_val <= 100) begin
+            step_cnt = in_val;
+        end
+    end
+    endtask
+
+    task set_isrc_val;
+    input real in_val;
+    real orig_i, di, tdelay;
+    begin
+        orig_i = isrc_val;
+        di = (in_val - orig_i) / step_cnt;
+        if(di > 0) tdelay = tr;
+        else tdelay = tf;
+        ramp_isrc_val(in_val, tdelay);
+    end
+    endtask
+
+    task set_ron_val;
+    input real in_val;
+    begin
+        ron_val = in_val;
+    end
+    endtask
+
+endmodule //nvt_isrc
+
+/**
+ * @author      : Xiwen Zhang (xiwen.zhang@nuvoltatech.com)
+ * @file        : nvt_ldol.vams
+ * @created     : Monday Nov 14, 2022 06:47:07 CST
+ */
+//
+//        NuVolta Technologies, Inc.
+//        Confidential Information
+//
+//        Description:
+//
+//
+//
+//        History:
+//        Date          Rev         who          Comments
+//        14/11/2022     1.0         xwzhang     Initial release
+//
+//----------------------------------------------------------------------------------------
+
+
+`include "disciplines.vams"
+`include "constants.vams"
+`timescale 1ns/1ps
+
+module nvt_ldol(vin, p, n, en);
+    inout vin, p, n;
+    input en;
+    wire en;
+    electrical p, n;
+    electrical vint, vin, va;
+    parameter real imax = 1; // default current limit of 1A
+    parameter real vdrop = 0.2;   // V dropout
+    parameter real vldo_out = 3.0;   // V norminal ldo_out voltage
+    parameter real vldo_disout = 0.0;   // V norminal ldo_out voltage
+    parameter real rnil = 1e-9; //short between p & va
+    parameter real tr = 100n; //default rise time for voltage source
+    parameter real tf = 100n; //default fall time for voltage source
+    parameter real ron = 1m; //default on impedance for voltage source
+    parameter real roff = 10e6; //default off impedance for voltage source
+    parameter real roff_dis = 10e6; //default off impedance for voltage source
+    parameter integer nstep = 10 from [1 : 100]; //default number of steps change
+    localparam real real_roff = vldo_disout > 0 ? roff : roff_dis;
+
+    real imax_val = imax;
+    real ldo_out_val, real_vldo_out, real_vldo_disout;
+    real vdrop_val = vdrop;
+    real trise = tr;
+    real tfall = tf;
+    integer step_cnt = nstep;
+    initial begin
+        real_vldo_out = vldo_out;
+        real_vldo_disout = vldo_disout;
+        step_cnt = nstep;
+        imax_val = imax;
+        trise = tr;
+        tfall = tf;
+    end
+    real vva, iva, sva, rvldo_out;
+
+    analog begin
+        ldo_out_val = transition((en === 1'b1)? real_vldo_out : real_vldo_disout, 0, tr, tf);
+        if(V(vin) >= ldo_out_val + vdrop_val) rvldo_out = ldo_out_val;
+        else if(V(vin) >= vdrop_val) rvldo_out = V(vin) - vdrop_val;
+        else rvldo_out = 0.0;
+
+        I(vint,n) <+ (V(vint,n) - rvldo_out) * transition(en ? 1 / ron : 1 /real_roff, 0, tr, tf);
+        I(vint,p) <+ transition(imax_val, 0, 100n, 100n);
+        I(p,va) <+ V(p,va) / rnil;
+
+        vva = V(va,vint);
+        iva = I(va,vint);
+        sva = vva + iva;
+        @(cross(sva, 0));
+        if(sva > 0) V(va,vint) <+ 0;
+        else I(va,vint) <+ 0;
+    end
+
+    task set_steps;
+    input integer in_val;
+    begin
+        if(in_val >= 1 && in_val <= 100) begin
+            step_cnt = in_val;
+        end
+    end
+    endtask
+
+    task set_ldo_disout_val;
+    input real in_val;
+    begin
+        real_vldo_disout = in_val;
+    end
+    endtask
+
+    task set_ldo_out_val;
+    input real in_val;
+    begin
+        real_vldo_out = in_val;
+    end
+    endtask
+
+    task set_vdrop_val;
+    input real in_val;
+    begin
+        vdrop_val = in_val;
+    end
+    endtask
+
+    task set_imax_val;
+    input real in_val;
+    begin
+        imax_val = in_val;
+    end
+    endtask
+
+    task set_trise_val;
+    input real in_val;
+    begin
+        trise = in_val;
+    end
+    endtask
+
+    task set_tfall_val;
+    input real in_val;
+    begin
+        tfall = in_val;
+    end
+    endtask
+
+endmodule //nvt_ldol
+
+/**
+ * @author      : Xiwen Zhang (xiwen.zhang@nuvoltatech.com)
+ * @file        : nvt_mull.vams
+ * @created     : Sunday Feb 12, 2023 04:32:32 CST
+ */
+//
+//        NuVolta Technologies, Inc.
+//        Confidential Information
+//
+//        Description:
+//
+//
+//
+//        History:
+//        Date          Rev         who          Comments
+//        12/02/2023     1.0         xwzhang     Initial release
+//
+//----------------------------------------------------------------------------------------
+
+
+`include "disciplines.vams"
+`include "constants.vams"
+`timescale 1ns/1ps
+
+module nvt_mull(in1, in2, out1, out2);
+    inout in1, in2, out1, out2;
+    electrical in1, in2, out1, out2;
+    parameter real l1 = 7e-6;
+    parameter real l2 = 7e-6;
+    parameter real k = 0.0;
+    real m;
+
+    real rk;
+    initial begin
+        rk = k;
+        m = rk * sqrt(l1 * l2);
+    end
+
+    task set_k;
+    input real in_val;
+    begin
+        ramp_k(in_val, 100e-9);
+    end
+    endtask
+
+    real d_dt, r_rk;
+
+    integer nstep = 10;
+    task ramp_k;
+    input real in_val;
+    input real in_time;
+    real dk, ddk;
+    begin
+        dk = in_val - rk;
+        ddk = dk / nstep;
+        d_dt = in_time / nstep;
+        repeat(nstep) begin
+            #(d_dt * 1e9);
+            rk = rk + ddk;
+            m = rk * sqrt(l1 * l2);
+        end
+    end
+    endtask
+
+    real rm;
+    analog begin
+        rm = transition(m, 0, d_dt, d_dt);
+        r_rk = rm / (sqrt(l1 * l2));
+        V(in1, in2) <+ l1 * ddt(I(in1, in2)) + rm * ddt(I(out1, out2));
+        V(out1, out2) <+ l2 * ddt(I(out1, out2)) + rm * ddt(I(in1, in2));
+    end
+
+endmodule //nvt_mull
+
+/**
+ * @author      : Xiwen Zhang (xiwen.zhang@nuvoltatech.com)
+ * @file        : nvt_osci.vams
+ * @created     : Wednesday Nov 16, 2022 23:58:15 CST
+ */
+//
+//        NuVolta Technologies, Inc.
+//        Confidential Information
+//
+//        Description:
+//        A generic oscillator model
+//
+//
+//        History:
+//        Date          Rev         who          Comments
+//        16/11/2022     1.0         xwzhang     Initial release
+//
+//----------------------------------------------------------------------------------------
+
+
+`include "disciplines.vams"
+`include "constants.vams"
+`timescale 1ns/1ps
+
+module nvt_osci(en, out);
+    input en;
+    output out;
+    wire en, out;
+    parameter real def_freq = 1e6 from (0:1e12);
+    parameter real def_duty = 0.5 from (0 : 1);
+    parameter integer stop_cnt = 3 from (1 : 16);
+    real freq;
+    real period;
+    real duty;
+    reg change = 1'b0;
+    reg clk_out = 1'b0;
+    initial begin
+        freq = def_freq;
+        period = 1.0 / freq;
+        duty = def_duty;
+    end
+
+    assign out = clk_out;
+
+    always @(posedge en or change) begin : CLK
+        if(en === 1'b1) begin
+            disable DIS_CLK;
+            forever begin
+                clk_out = 1'b0;
+                #((1 - duty) * period * 1e9) clk_out = 1'b1;
+                #(duty * period * 1e9) clk_out = 1'b0;
+            end
+        end
+    end
+
+    always @(negedge en) begin : DIS_CLK
+        if(out === 1'b1) begin
+            repeat(stop_cnt) @(negedge out);
+        end
+        disable CLK;
+        clk_out = 1'b0;
+    end
+
+    task set_freq;
+    input real in_val;
+    begin
+        freq = in_val;
+        period = 1 / freq;
+        change = ~change;
+    end
+    endtask
+
+    task set_duty;
+    input real in_val;
+    begin
+        duty = in_val;
+        change = ~change;
+    end
+    endtask
+
+endmodule //nvt_osci
+
+// VerilogA for TG3_phoenix_top, RTX_POWER_MODEL, veriloga
+
+`include "constants.vams"
+`include "disciplines.vams"
+`timescale 1ns/1ps
+
+module nvt_rtx_power_model(VRECT, VSS, EN);
+
+inout VRECT;
+electrical VRECT;
+inout VSS;
+electrical VSS;
+input EN;
+
+parameter real Lp = 13u;
+parameter real Cp = 247n;
+parameter real Rp = 200m;
+
+parameter real Ls = 4.5u;
+parameter real Cs = 1200n;
+parameter real Rs = 200m;
+
+parameter real k = 650m;
+parameter real VinTx = 20;
+parameter real freq = 130k;
+
+real w;
+real Re;
+real vrect;
+real A;
+real B;
+real gain;
+real v_vrect, i_vrect, p_vrect, ss, sp, wk, Req;
+
+analog begin
+    w = `M_TWO_PI * freq;
+    v_vrect = V(VRECT, VSS);
+    i_vrect = -I(VRECT, VSS);
+    p_vrect = v_vrect * i_vrect;
+    sp = (1 / (w * Cp) - w * Lp);
+    ss = (1 / (w * Cs) - w * Ls);
+
+    wk = w * k;
+    Re = 8 * (v_vrect / max(1m, i_vrect)) / `M_PI ** 2;
+    Req = Re + Rs;
+    A = Rp * ss  + Req * sp;
+    B = sp * ss - ((wk ** 2) * Lp * Ls + Rp * Req);
+
+    gain = wk * sqrt(Lp*Ls) * Re / sqrt(A**2 + B**2) ;
+    vrect = gain * VinTx;
+
+    V(VRECT,VSS) <+ transition(EN === 1'b1,10n,10n,10n) * max(1m, min(30,vrect));
+
+end
+endmodule
+/**
+ * @author      : Xiwen Zhang (xiwen.zhang@nuvoltatech.com)
+ * @file        : nvt_rtxp.vams
+ * @created     : Wednesday Jan 04, 2023 23:44:36 CST
+ */
+//
+//        NuVolta Technologies, Inc.
+//        Confidential Information
+//
+//        Description:
+//
+//
+//
+//        History:
+//        Date          Rev         who          Comments
+//        04/01/2023     1.0         xwzhang     Initial release
+//
+//----------------------------------------------------------------------------------------
+
+
+`include "disciplines.vams"
+`include "constants.vams"
+`timescale 1ns/1ps
+
+module nvt_rtxp(vrect, vss, en);
+    inout vrect;
+    input en, vss;
+    electrical vrect, vss;
+    wire en;
+
+    parameter real Lp=13u;
+    parameter real Cp=247n;
+    parameter real Rp=200m;
+
+    parameter real Ls=4.5u;
+    parameter real Cs=1200n;
+    parameter real Rs=200m;
+
+    parameter real kini = 0;
+    parameter real vin_tx_ini = 20;
+    parameter real tx_freq = 130e3;
+    parameter real ron = 20e-3;
+    parameter real roff = 20e6;
+    parameter real vrect_min = 1e-3;
+    parameter real vrect_max = 30;
+
+    real w, Re, Req, a, b, gain, sp, ss;
+    real freq, freq_tran, vin_tx, vin_tran, k, k_tran, r_k, wk;
+    real r_vrect_lim,r_vrect, v_vrect, i_vrect, p_vrect;
+    integer kstep_cnt = 100, vin_step_cnt = 100, freq_step_cnt = 100;
+
+    initial begin
+        freq = tx_freq;
+        freq_tran = 10e-9;
+        vin_tx = vin_tx_ini;
+        vin_tran = 10e-9;
+        k = kini;
+        k_tran = 10e-9;
+    end
+
+    task ramp_freq;
+    input real in_val;
+    input real ramp_time;
+    real orig_freq, dfreq;
+    begin
+        freq_tran = ramp_time / freq_step_cnt;
+        orig_freq = freq;
+        dfreq = (in_val - orig_freq) / freq_step_cnt;
+        repeat(freq_step_cnt) begin
+            #(freq_tran * 1e9);
+            freq = freq + dfreq;
+        end
+    end
+    endtask
+
+    task ramp_vin;
+    input real in_val;
+    input real ramp_time;
+    real orig_vin, dvin;
+    begin
+        vin_tran = ramp_time / vin_step_cnt;
+        orig_vin = vin_tx;
+        dvin = (in_val - orig_vin) / vin_step_cnt;
+        repeat(vin_step_cnt) begin
+            #(vin_tran * 1e9);
+            vin_tx = vin_tx + dvin;
+        end
+    end
+    endtask
+
+    task ramp_k;
+    input real in_val;
+    input real ramp_time;
+    real orig_k, dk;
+    begin
+        k_tran = ramp_time / kstep_cnt;
+        orig_k = k;
+        dk = (in_val - orig_k) / kstep_cnt;
+        repeat(kstep_cnt) begin
+            #(k_tran * 1e9);
+            k = k + dk;
+        end
+    end
+    endtask
+
+    analog begin
+        w = `M_TWO_PI * transition(freq, 0, freq_tran);
+        r_k = transition(k, 0, k_tran);
+        wk = w * r_k;
+        v_vrect = V(vrect, vss);
+        i_vrect = -I(vrect, vss);
+        p_vrect = v_vrect * i_vrect;
+        Re = 8 * ((v_vrect / max(1e-3, i_vrect)) / `M_PI) ** 2;
+        Req = Re + Rs;
+        sp = (1 / (w * Cp) - w * Lp);
+        ss = (1 / (w * Cs) - w * Ls);
+
+        a = Rp * ss + Req * sp;
+        b = sp * ss - ((wk ** 2) * Lp * Ls + Rp * Req);
+        gain = wk * sqrt(Lp * Ls) * Re / (sqrt(a ** 2 + b ** 2));
+        r_vrect = gain * transition(vin_tx, 0, vin_tran);
+        r_vrect_lim = max(vrect_min, min(vrect_max, r_vrect));
+
+        I(vrect, vss) <+ (V(vrect, vss) - r_vrect_lim) * transition(en === 1'b1 ? 1 / ron : 1 / roff, 0, 10n);
+    end
+
+endmodule //nvt_rtxp
+
+/**
+ * @author      : Xiwen Zhang (xiwen.zhang@nuvoltatech.com)
+ * @file        : nvt_swth.vams
+ * @created     : Friday Nov 11, 2022 12:36:58 CST
+ */
+//
+//        NuVolta Technologies, Inc.
+//        Confidential Information
+//
+//        Description:
+//        A switch that's used to connect between p & n with en
+//
+//
+//        History:
+//        Date          Rev         who          Comments
+//        11/11/2022     1.0         xwzhang     Initial release
+//
+//----------------------------------------------------------------------------------------
+
+
+`include "disciplines.vams"
+`include "constants.vams"
+`timescale 1ns/1ps
+
+module nvt_swth(p, n, en);
+    inout p, n;
+    input en;
+    wire en;
+    electrical p, n;
+    parameter real tr = 100n; //default rise time for voltage source
+    parameter real tf = 100n; //default fall time for voltage source
+    parameter real ron = 1m; //default on impedance for voltage source
+    parameter real roff = 10e6; //default off impedance for voltage source
+    parameter real gmin = 1e-12; //gmin
+    parameter integer nstep = 10 from [1 : 100]; //default number of steps change
+
+    real trise = tr;
+    real tfall = tf;
+    real ron_val = ron;
+    real roff_val = roff;
+    integer step_cnt = nstep;
+    initial begin
+        step_cnt = nstep;
+        trise = tr;
+        tfall = tf;
+    end
+
+    analog begin
+        I(p, n) <+ V(p, n) * transition(en ? 1 / ron_val : 1 /roff_val, 0, trise, tfall);
+        I(p, n) <+ V(p, n) * gmin;
+    end
+
+    task set_trise_val;
+    input real in_val;
+    begin
+        trise = in_val;
+    end
+    endtask
+
+    task set_tfall_val;
+    input real in_val;
+    begin
+        tfall = in_val;
+    end
+    endtask
+
+    task set_ron_val;
+    input real in_val;
+    begin
+        ron_val = in_val;
+    end
+    endtask
+
+    task set_roff_val;
+    input real in_val;
+    begin
+        roff_val = in_val;
+    end
+    endtask
+
+
+endmodule //nvt_swth
+
+/**
+ * @author      : Xiwen Zhang (xiwen.zhang@nuvoltatech.com)
+ * @file        : nvt_vbat.vams
+ * @created     : Wednesday Dec 07, 2022 05:04:52 CST
+ */
+//
+//        NuVolta Technologies, Inc.
+//        Confidential Information
+//
+//        Description:
+//
+//
+//
+//        History:
+//        Date          Rev         who          Comments
+//        07/12/2022     1.0         xwzhang     Initial release
+//
+//----------------------------------------------------------------------------------------
+
+
+`include "disciplines.vams"
+`include "constants.vams"
+`timescale 1ns/1ps
+
+module nvt_vbat(vbat, vss);
+    inout vbat, vss;
+    electrical vbat, vss;
+
+//    GS("nvt_vsrc vbat vss en_vbat")
+    reg reg_en_vbat = 1'b0;
+    electrical vbat_curr;
+    nvt_vsrc vsrc_Vbat(.p(vbat_curr), .n(vss), .en(reg_en_vbat));
+//    GA("nvt_vcap vbat vss cdc=1e-3")
+    reg reg_connect_cbat = 1'b0;
+    electrical vbat_cap;
+    real force_duration = 5e6;
+//    GA("nvt_swth vbat vbat_cap reg_connect_cbat")
+    nvt_swth switch_VbatVbat_cap(.p(vbat_curr), .n(vbat_cap), .en(reg_connect_cbat));
+//    GA("nvt_vcap vbat_cap vss cdc=1e-3")
+    nvt_vcap #(.cdc(1e-3)) vcap_Vbat_cap(.p(vbat_cap), .n(vss));
+    real ibat;
+    always @(absdelta(I(vbat, vbat_curr), 1e-6)) ibat = I(vbat, vbat_curr);
+
+    task conn_cbat;
+    begin
+        reg_connect_cbat = 1'b1;
+    end
+    endtask
+
+    task disconn_cbat;
+    begin
+        reg_connect_cbat = 1'b0;
+    end
+    endtask
+
+    task en_vbat;
+    begin
+        reg_en_vbat = 1'b1;
+    end
+    endtask
+
+    task dis_vbat;
+    begin
+        reg_en_vbat = 1'b0;
+    end
+    endtask
+
+    task force_bat_value;
+    input real f_val;
+    begin
+        en_vbat;
+        vsrc_Vbat.set_vsrc_val(f_val);
+        conn_cbat;
+        #force_duration;
+        disconn_cbat;
+        dis_vbat;
+        vsrc_Vbat.set_vsrc_val(0);
+    end
+    endtask
+
+endmodule //nvt_vbat
+
+/**
+ * @author      : Xiwen Zhang (xiwen.zhang@nuvoltatech.com)
+ * @file        : nvt_vcap.vams
+ * @created     : Sunday Nov 13, 2022 06:29:33 CST
+ */
+//
+//        NuVolta Technologies, Inc.
+//        Confidential Information
+//
+//        Description:
+//
+//
+//
+//        History:
+//        Date          Rev         who          Comments
+//        13/11/2022     1.0         xwzhang     Initial release
+//
+//----------------------------------------------------------------------------------------
+
+
+`include "disciplines.vams"
+`include "constants.vams"
+`timescale 1ns/1ps
+
+module nvt_vcap(p, n);
+    input p, n;
+    electrical p, n;
+    parameter real cdc = 100e-6; //default initial value of the resistor
+    parameter real tr = 100n; //default rise/fall time for the changes
+    parameter real tf = 100n; //default rise/fall time for the changes
+    parameter real gmin = 1e-12; //gmin
+    parameter integer nstep = 50 from [1 : 500]; //default number of steps change
+
+    real c = cdc;
+    real trise = tr;
+    real tfall = tf;
+    integer step_cnt = nstep;
+    initial begin
+        c = cdc;
+        step_cnt = nstep;
+        trise = tr;
+        tfall = tf;
+    end
+
+    real rc;
+    analog begin
+        rc = transition(c, 0, trise, tfall);
+        I(p, n) <+ ddt(V(p, n)) * rc;
+        I(p, n) <+ V(p, n) * gmin;
+    end
+
+    task ramp_c;
+    input real in_val;
+    input real ramp_time;
+    real orig_c, dc;
+    begin
+        trise = ramp_time / step_cnt;
+        tfall = ramp_time / step_cnt;
+        orig_c = c;
+        dc = exp(ln(in_val / orig_c) / step_cnt);
+        repeat(step_cnt) begin
+            if(orig_c < in_val) #(trise * 1e9);
+            else #(tfall * 1e9);
+            c = c * dc;
+        end
+        trise = tr;
+        tfall = tf;
+        c = in_val;
+    end
+    endtask
+
+    task set_c;
+    input real in_val;
+    begin
+        trise = tr;
+        tfall = tf;
+        c = in_val;
+    end
+    endtask
+
+    task set_steps;
+    input integer in_val;
+    begin
+        if(in_val >= 1 && in_val <= 100) begin
+            step_cnt = in_val;
+        end
+    end
+    endtask
+
+endmodule //nvt_vcap
+/**
+ * @author      : Xiwen Zhang (xiwen.zhang@nuvoltatech.com)
+ * @file        : nvt_vchk.vams
+ * @created     : Wednesday Nov 16, 2022 23:18:07 CST
+ */
+//
+//        NuVolta Technologies, Inc.
+//        Confidential Information
+//
+//        Description:
+//        Voltage check
+//
+//
+//        History:
+//        Date          Rev         who          Comments
+//        16/11/2022     1.0         xwzhang     Initial release
+//
+//----------------------------------------------------------------------------------------
+
+
+`include "disciplines.vams"
+`include "constants.vams"
+`timescale 1ns/1ps
+
+module nvt_vchk(p, n, vg);
+    input p, n;
+    electrical p, n;
+    output vg;
+    wire vg;
+    parameter real exp_val = 0.5;
+    parameter real accuracy = 0.1 * exp_val;
+
+    electrical pn_diff, vexp_low, vexp_high;
+//    GA("nvt_comp pn_diff vexp_low 1'b1 pn_gt_low")
+    wire pn_gt_low, pn_gt_high;
+    nvt_comp comp_Pn_gt_low(.p(pn_diff), .n(vexp_low), .en(1'b1), .out(pn_gt_low));
+//    GA("nvt_comp pn_diff vexp_high 1'b1 pn_gt_high")
+    nvt_comp comp_Pn_gt_high(.p(pn_diff), .n(vexp_high), .en(1'b1), .out(pn_gt_high));
+    assign vg = pn_gt_low & ~pn_gt_high;
+    analog begin
+        V(pn_diff) <+ V(p, n);
+        V(vexp_low) <+ exp_val - accuracy;
+        V(vexp_high) <+ exp_val + accuracy;
+    end
+
+endmodule //nvt_vchk
+
+/**
+ * @author      : Xiwen Zhang (xiwen.zhang@nuvoltatech.com)
+ * @file        : nvt_vdcl.vams
+ * @created     : Thursday Nov 10, 2022 12:04:00 CST
+ */
+//
+//        NuVolta Technologies, Inc.
+//        Confidential Information
+//
+//        Description:
+//        A current limited voltage source
+//
+//
+//        History:
+//        Date          Rev         who          Comments
+//        11/10/22     1.0         xwzhang     Initial release
+//
+//----------------------------------------------------------------------------------------
+
+
+`include "disciplines.vams"
+`include "constants.vams"
+`timescale 1ns/1ps
+
+module nvt_vdcl(p, n, en);
+    inout p, n;
+    input en;
+    wire en;
+    electrical p, n;
+    electrical vint, va;
+    parameter real imax = 1; // current limit
+    parameter real vdd  = 0.0;   // V set
+    parameter real rnil = 1e-9; //short between p & va
+    parameter real tr = 100n; //default rise time for voltage source
+    parameter real tf = 100n; //default fall time for voltage source
+    parameter real ron = 1m; //default on impedance for voltage source
+    parameter real roff = 10e6; //default off impedance for voltage source
+    parameter integer nstep = 10 from [1 : 100]; //default number of steps change
+
+    real vdd_val, imax_val;
+    real trise = tr;
+    real tfall = tf;
+    integer step_cnt = nstep;
+    initial begin
+        step_cnt = nstep;
+        vdd_val = vdd;
+        imax_val = imax;
+        trise = tr;
+        tfall = tf;
+    end
+    real vva, iva, sva;
+
+    analog begin
+        I(vint,n) <+ (V(vint,n) - transition(vdd_val, 0, trise, tfall)) * transition( en ? 1 / ron : 1 /roff, 0, tr, tf);
+        I(vint,p) <+ transition(imax_val, 0, 100n, 100n);
+        I(p,va) <+ V(p,va) / rnil;
+
+        vva = V(va,vint);
+        iva = I(va,vint);
+        sva = vva + iva;
+        @(cross(sva, 0));
+        if(sva > 0) V(va,vint) <+ 0;
+        else I(va,vint) <+ 0;
+    end
+
+    task ramp_vdd_val;
+    input real in_val;
+    input real ramp_time;
+    real orig_v, dv;
+    begin
+        trise = ramp_time / step_cnt;
+        tfall = ramp_time / step_cnt;
+        orig_v = vdd_val;
+        dv = (in_val - orig_v) / step_cnt;
+        repeat(step_cnt) begin
+            if(orig_v < in_val) #(trise * 1e9);
+            else #(tfall * 1e9);
+            vdd_val = vdd_val + dv;
+        end
+    end
+    endtask
+
+    task set_steps;
+    input integer in_val;
+    begin
+        if(in_val >= 1 && in_val <= 100) begin
+            step_cnt = in_val;
+        end
+    end
+    endtask
+
+    task set_vdd_val;
+    input real in_val;
+    begin
+        trise = tr;
+        tfall = tf;
+        vdd_val = in_val;
+    end
+    endtask
+
+    task set_imax_val;
+    input real in_val;
+    begin
+        imax_val = in_val;
+    end
+    endtask
+
+endmodule
+/**
+ * @author      : Xiwen Zhang (xiwen.zhang@nuvoltatech.com)
+ * @file        : nvt_vres.vams
+ * @created     : Thursday Nov 10, 2022 12:21:40 CST
+ */
+//
+//        NuVolta Technologies, Inc.
+//        Confidential Information
+//
+//        Description:
+//        A variable resistor model that can change its value during run time
+//
+//
+//        History:
+//        Date          Rev         who          Comments
+//        11/10/22     1.0         xwzhang     Initial release
+
+//
+//----------------------------------------------------------------------------------------
+
+
+`include "disciplines.vams"
+`include "constants.vams"
+`timescale 1ns/1ps
+
+module nvt_vres(p, n);
+    input p, n;
+    electrical p, n;
+    parameter real rdc = 1e6; //default initial value of the resistor
+    parameter real tr = 100n; //default rise/fall time for the changes
+    parameter real tf = 100n; //default rise/fall time for the changes
+    parameter real gmin = 1e-12; //gmin
+    parameter integer nstep = 50 from [1 : 500]; //default number of steps change
+
+    real r = rdc;
+    real trise = tr;
+    real tfall = tf;
+    integer step_cnt = nstep;
+    initial begin
+        r = rdc;
+        step_cnt = nstep;
+        trise = tr;
+        tfall = tf;
+    end
+
+    real gr;
+    analog begin
+        gr = transition(1 / r, 0, trise, tfall);
+        I(p, n) <+ V(p, n) * gr;
+        I(p, n) <+ V(p, n) * gmin;
+    end
+
+    task ramp_r;
+    input real in_val;
+    input real ramp_time;
+    real orig_r, dr;
+    begin
+        trise = ramp_time / step_cnt;
+        tfall = ramp_time / step_cnt;
+        orig_r = r;
+        dr = exp(ln(in_val / orig_r) / step_cnt);
+        repeat(step_cnt) begin
+            if(orig_r < in_val) #(trise * 1e9);
+            else #(tfall * 1e9);
+            r = r * dr;
+        end
+        trise = tr;
+        tfall = tf;
+        r = in_val;
+    end
+    endtask
+
+    task set_r;
+    input real in_val;
+    begin
+        trise = tr;
+        tfall = tf;
+        r = in_val;
+    end
+    endtask
+
+    task set_steps;
+    input integer in_val;
+    begin
+        if(in_val >= 1 && in_val <= 100) begin
+            step_cnt = in_val;
+        end
+    end
+    endtask
+
+endmodule //nvt_vres
+/**
+ * @author      : Xiwen Zhang (xiwen.zhang@nuvoltatech.com)
+ * @file        : nvt_vsrc.vams
+ * @created     : Friday Nov 11, 2022 11:30:55 CST
+ */
+//
+//        NuVolta Technologies, Inc.
+//        Confidential Information
+//
+//        Description:
+//        A controlled voltage source
+//
+//
+//        History:
+//        Date          Rev         who          Comments
+//        11/11/2022     1.0         xwzhang     Initial release
+//
+//----------------------------------------------------------------------------------------
+
+
+`include "disciplines.vams"
+`include "constants.vams"
+`timescale 1ns/1ps
+
+module nvt_vsrc(p, n, en);
+    inout p, n;
+    input en;
+    wire en;
+    electrical p, n;
+    parameter real vdc  = 0.0;   // V set
+    parameter real tr = 100n; //default rise time for voltage source
+    parameter real tf = 100n; //default fall time for voltage source
+    parameter real ron = 1m; //default on impedance for voltage source
+    parameter real roff = 10e6; //default off impedance for voltage source
+    parameter integer nstep = 10 from [1 : 100]; //default number of steps change
+
+    real vsrc_val = vdc;
+    real trise = tr;
+    real tfall = tf;
+    real ron_val = ron;
+    real roff_val = roff;
+    integer step_cnt = nstep;
+    reg pulse_en = 1'b0;
+    reg reg_set_pulse_low = 1'b0;
+    real pulse_vhi = 0.0;
+    real pulse_vlow = 0.0;
+    real pulse_delay = 0.0;
+    real pulse_rise_time = 10e-9;
+    real pulse_fall_time = 10e-9;
+    real pulse_high_time = 10e-9;
+    real pulse_low_time = 1e-6;
+    real pulse_frequency = 1e6;
+    real pulse_period;
+
+    wire vsrc_en = pulse_en | en;
+    initial begin
+        step_cnt = nstep;
+        vsrc_val = vdc;
+        trise = tr;
+        tfall = tf;
+        pulse_period = 1 / pulse_frequency;
+    end
+
+    analog begin
+        I(p,n) <+ (V(p,n) - transition(vsrc_val, 0, trise, tfall)) * transition((vsrc_en === 1'b1)? 1 / ron_val : 1 /roff_val, 0, tr, tf);
+    end
+
+    always @(posedge pulse_en) begin: PULSES
+        ramp_vsrc_val(pulse_vlow, pulse_rise_time);
+        #(pulse_delay * 1e9);
+        forever begin
+            if(!reg_set_pulse_low) begin
+                pulse_low_time = pulse_period - pulse_high_time - pulse_rise_time - pulse_fall_time;
+            end
+            ramp_vsrc_val(pulse_vhi, pulse_rise_time);
+            #(pulse_high_time * 1e9);
+            ramp_vsrc_val(pulse_vlow, pulse_fall_time);
+            #(pulse_low_time * 1e9);
+        end
+    end
+
+    always @(negedge pulse_en) begin: DIS_PULSES
+        disable PULSES;
+    end
+
+    task set_pulse_en;
+    input reg in_val;
+    begin
+        pulse_en = in_val;
+    end
+    endtask
+
+    task enable_pulse;
+    begin
+        set_pulse_en(1'b1);
+    end
+    endtask
+
+    task disable_pulse;
+    begin
+        set_pulse_en(1'b0);
+    end
+    endtask
+
+    task set_vsrc_pulses;
+    input real vhi;
+    input real vlow;
+    input real tdelay;
+    input real rise_time;
+    input real fall_time;
+    input real high_time;
+    input real low_time;
+    begin
+        set_pulse_vhi(vhi);
+        set_pulse_vlow(vlow);
+        set_pulse_delay(tdelay);
+        set_pulse_rise_time(rise_time);
+        set_pulse_fall_time(fall_time);
+        set_pulse_high_time(high_time);
+        set_pulse_low_time(low_time);
+    end
+    endtask
+
+    task set_pulse_vlow;
+    input real in_val;
+    begin
+        pulse_vlow = in_val;
+    end
+    endtask
+
+    task set_pulse_vhi;
+    input real in_val;
+    begin
+        pulse_vhi = in_val;
+    end
+    endtask
+
+    task set_pulse_delay;
+    input real in_val;
+    begin
+        pulse_delay = in_val;
+    end
+    endtask
+
+    task set_pulse_rise_time;
+    input real in_val;
+    begin
+        pulse_rise_time = in_val;
+    end
+    endtask
+
+    task set_pulse_fall_time;
+    input real in_val;
+    begin
+        pulse_fall_time = in_val;
+    end
+    endtask
+
+    task set_pulse_high_time;
+    input real in_val;
+    begin
+        pulse_high_time = in_val;
+    end
+    endtask
+
+    task set_pulse_low_time;
+    input real in_val;
+    begin
+        pulse_low_time = in_val;
+        reg_set_pulse_low = 1'b1;
+        pulse_period = pulse_low_time + pulse_high_time + pulse_rise_time + pulse_fall_time;
+        pulse_frequency = 1 / pulse_period;
+    end
+    endtask
+
+    task set_pulse_period;
+    input real in_val;
+    begin
+        pulse_period = in_val;
+        pulse_frequency = 1 / in_val;
+        reg_set_pulse_low = 1'b0;
+    end
+    endtask
+
+    task set_pulse_frequency;
+    input real in_val;
+    begin
+        pulse_frequency = in_val;
+        pulse_period = 1 / in_val;
+        reg_set_pulse_low = 1'b0;
+    end
+    endtask
+
+    task ramp_vsrc_val;
+    input real in_val;
+    input real ramp_time;
+    real orig_v, dv, tdelay, temp_dt;
+    integer temp_step_cnt;
+    begin
+        temp_step_cnt = step_cnt;
+        temp_dt = ramp_time / temp_step_cnt;
+        if(temp_dt <= 1e-11) begin
+            temp_dt = 1e-11;
+            temp_step_cnt = ramp_time / temp_dt + 1;
+            temp_dt = ramp_time / temp_step_cnt;
+        end
+        trise = temp_dt;
+        tfall = temp_dt;
+        orig_v = vsrc_val;
+        dv = (in_val - orig_v) / temp_step_cnt;
+        if(dv > 0) tdelay = trise;
+        else tdelay = tfall;
+        repeat(temp_step_cnt) begin
+            #(tdelay * 1e9);
+            vsrc_val = vsrc_val + dv;
+        end
+    end
+    endtask
+
+    task set_steps;
+    input integer in_val;
+    begin
+        if(in_val >= 1 && in_val <= 100) begin
+            step_cnt = in_val;
+        end
+    end
+    endtask
+
+    task set_vsrc_val;
+    input real in_val;
+    real orig_v, dv, tdelay;
+    begin
+        orig_v = vsrc_val;
+        dv = (in_val - orig_v) / step_cnt;
+        if(dv > 0) tdelay = tr;
+        else tdelay = tf;
+        ramp_vsrc_val(in_val, tdelay);
+    end
+    endtask
+
+    task set_ron_val;
+    input real in_val;
+    begin
+        ron_val = in_val;
+    end
+    endtask
+
+    task set_roff_val;
+    input real in_val;
+    begin
+        roff_val = in_val;
+    end
+    endtask
+
+endmodule //nvt_vsrc
+
